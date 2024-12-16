@@ -1,7 +1,7 @@
 name: Alipay
 type: module
 description: 'Provide alipay functionality.'
-core: 8.x
+core_version_requirement: '^9.4 || ^10 || ^11'
 package: Finance
 dependencies:
   - commerce:commerce_price
