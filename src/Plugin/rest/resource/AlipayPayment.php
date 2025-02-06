@@ -104,10 +104,10 @@ class AlipayPayment extends ResourceBase {
     }
 
     // 检查用户选择的支付方式，保存到订单
-    if (!isset($data['gateway'])) {
+    if (!isset($data['gateway_id'])) {
       throw new BadRequestHttpException('没有指定网关');
     }
-    $gateway_name = $data['gateway'];
+    $gateway_name = $data['gateway_id'];
 
     /** @var \Drupal\commerce_payment\PaymentGatewayStorageInterface $payment_gateway_storage */
     $payment_gateway_storage = \Drupal::service('entity_type.manager')->getStorage('commerce_payment_gateway');
@@ -121,7 +121,7 @@ class AlipayPayment extends ResourceBase {
       throw new BadRequestHttpException('指定了非支付宝网关');
     }
 
-    $commerce_order = Order::load($data['cart_id']);
+    $commerce_order = Order::load($data['order_id']);
 
     $payment_storage = $this->entityTypeManager->getStorage('commerce_payment');
     /** @var \Drupal\commerce_payment\Entity\PaymentInterface $payment */
