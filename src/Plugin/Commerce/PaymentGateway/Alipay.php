@@ -190,30 +190,129 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
   }
 
   /**
+   * Create a payment on new state.
+   *
+   * Transfer to completed of fails on notify receive.
+   *
+   * @param \Drupal\commerce_order\Entity\Order $commerce_order
+   *   The order to pay.
+   *
+   * @return \Drupal\commerce_payment\Entity\PaymentInterface
+   *   The saved payment.
+   *
+   * @throws \Drupal\Core\Entity\EntityStorageException
+   * @throws \Exception
+   */
+  public function createPayment(Order $commerce_order): PaymentInterface {
+    if ($commerce_order->getTotalPrice()->getCurrencyCode() !== 'CNY') {
+      throw new \Exception('Only CNY currency is supported.');
+    }
+    $payment = Payment::create([
+      'state' => 'new',
+      'amount' => $commerce_order->getTotalPrice(),
+      'payment_gateway' => $this->pluginId,
+      'order_id' => $commerce_order,
+      'test' => $this->getMode() === 'test',
+    ]);
+    $payment->save();
+    return $payment;
+  }
+
+  /**
+   * Get pay order number.
+   *
+   * @param \Drupal\commerce_payment\Entity\PaymentInterface $payment
+   *   The payment.
+   *
+   * @return string
+   *   The pay order number.
+   */
+  private function getPaymentOrderNumber(PaymentInterface $payment): string {
+    return (new \DateTime())->format('YmdHis') . mt_rand(1000, 9999) . '-' . $payment->id();
+  }
+
+  /**
+   * Get commerce order items labels as a string.
+   *
+   * @param \Drupal\commerce_payment\Entity\PaymentInterface $payment
+   *   The payment.
+   *
+   * @return string
+   *   The commerce order items labels.
+   */
+  private function getOrderItemNames(PaymentInterface $payment): string {
+    $commerce_order = $payment->getOrder();
+
+    $order_item_names = '';
+    foreach ($commerce_order->getItems() as $order_item) {
+      /** @var \Drupal\commerce_order\Entity\OrderItem $order_item */
+      $order_item_names .= $order_item->getTitle() . ', ';
+    }
+    return $order_item_names;
+  }
+
+  /**
+   * Get number string of the payment amount.
+   *
+   * @param \Drupal\commerce_payment\Entity\PaymentInterface $payment
+   *   The payment.
+   *
+   * @return string
+   *   The number string of the payment amount.
+   */
+  private function getPaymentAmount(PaymentInterface $payment) {
+    $total_fee = $payment->getAmount()->getNumber();
+    if ($this->getMode() === 'test') {
+      $total_fee = '0.01';
+    }
+    return $total_fee;
+  }
+
+  /**
    * {@inheritdoc}
    *
    * @throws \Exception
    */
   public function getClientLaunchConfig($commerce_order) {
-    // Call api alipay.trade.app.pay to build to orderStr.
-    $config = [];
+    $this->ensureEasySdkInitialized();
 
-    $client_type = $this->getConfiguration()['client_type'];
-    if ($client_type !== self::CLIENT_TYPE_NATIVE_APP) {
+    // Call api alipay.trade.app.pay to build to orderStr.
+    if ($this->getConfiguration()['client_type'] !== self::CLIENT_TYPE_NATIVE_APP) {
       throw new \Exception('Unsupported client type.');
     }
 
     $payment = $this->createPayment($commerce_order);
 
-    $result = Factory::payment()->app()->pay("iPhone6 16G", "20200326235526001", "88.88");
+    $result = Factory::payment()->app()->pay($this->getOrderItemNames($payment), $this->getPaymentOrderNumber($payment), $this->getPaymentAmount($payment));
     $responseChecker = new ResponseChecker();
     if (!$responseChecker->success($result)) {
       throw new \Exception("easySDK 调用失败，原因：" . $result->msg . "，" . $result->subMsg);
     }
     else {
-      $config['order_string'] = $result->orderStr;
-      return $config;
+      return ['order_string' => $result->orderStr];
     }
+  }
+
+  /**
+   * Redirect to alipay web cashier.
+   *
+   * @return string
+   *   Post form html.
+   *
+   * @throws \Drupal\Core\Entity\EntityStorageException
+   */
+  public function requestRedirectUrl($commerce_order, &$payment) {
+    $this->ensureEasySdkInitialized();
+
+    if ($this->getConfiguration()['client_type'] !== self::CLIENT_TYPE_WEBSITE) {
+      throw new \Exception('Unsupported client type.');
+    }
+
+    // Call alipay\.trade\.page\.pay.
+    $payment = $this->createPayment($commerce_order);
+    $response = Factory::payment()->page()->pay($this->getOrderItemNames($payment), $this->getPaymentOrderNumber($payment), $this->getPaymentAmount($payment), '@todo');
+
+    return $response->pageRedirectionData;
   }
 
   /**
@@ -226,174 +325,59 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
   /**
    * {@inheritdoc}
    *
-   * @throws \EasyWeChat\Core\Exceptions\FaultException
    * @throws \Exception
    */
   public function onNotify(Request $request) {
-    \Drupal::logger('alipay')->notice('接收到来自支付宝的通知：' . print_r($_POST, TRUE));
+    $this->logger->info('接收到来自支付宝的通知：' . print_r($request->toArray(), TRUE));
 
-    $client_type = $this->getConfiguration()['client_type'];
-    $request = NULL;
-    switch ($client_type) {
-      case self::CLIENT_TYPE_NATIVE_APP:
-        $request = $this->getOmniGateway('Alipay_AopApp')->completePurchase();
-        break;
+    $this->ensureEasySdkInitialized();
 
-      default:
-        throw new \Exception('未实现的客户端类型');
-    }
-
-    // Optional.
-    $request->setParams($_POST);
-
-    /** @var \Omnipay\Alipay\Responses\AopCompletePurchaseResponse $response */
     try {
-      $response = $request->send();
 
-      if ($response->isPaid()) {
+      if (Factory::payment()->common()->verifyNotify($request->toArray())) {
         \Drupal::logger('alipay')->notice('通知验证成功。');
 
         // 处理订单状态
         // load the payment.
-        $order_id = NULL;
         $payment_id = NULL;
-        $id_info = explode('-', $_POST['out_trade_no']);
-        if ($id_info && count($id_info) > 2) {
-          $order_id = $id_info[0];
+        $id_info = explode('-', $request->get('out_trade_no'));
+        if ($id_info && count($id_info) === 2) {
           $payment_id = $id_info[1];
         }
         else {
-          \Drupal::logger('alipay')->error('out_trade_no不是预期格式[' . $_POST['out_trade_no'] . ']: ' . print_r($_POST, TRUE));
+          $this->logger->error('out_trade_no不是预期格式[' . $request->get('out_trade_no') . ']: ');
           die('fail');
         }
 
         /** @var \Drupal\commerce_payment\Entity\Payment $payment_entity */
         $payment_entity = Payment::load($payment_id);
-        $order = Order::load($order_id);
-        if ($payment_entity && (int) $payment_entity->getOrderId() === (int) $order_id) {
+        if ($payment_entity instanceof PaymentInterface) {
           $payment_entity->setState('completed');
-          $payment_entity->setRemoteId($_POST['trade_no']);
+          $payment_entity->setRemoteId($request->get('trade_no'));
           $payment_entity->save();
 
+          $order = $payment_entity->getOrder();
           $transition = $order->getState()->getWorkflow()->getTransition('place');
           $order->getState()->applyTransition($transition);
           $order->save();
         }
         else {
           // Payment doesn't exist.
-          \Drupal::logger('alipay')->error('找不到订单[' . $order_id . ']的支付单[' . $payment_id . ']: ' . print_r($_POST, TRUE));
+          $this->logger->error('找不到支付订单[' . $payment_id . ']: ');
           die('fail');
         }
 
         die('success');
       }
       else {
-        \Drupal::logger('alipay')->notice('通知验证失败。');
+        $this->logger->notice('通知验证失败。');
         die('fail');
       }
     }
     catch (\Exception $e) {
-      \Drupal::logger('alipay')->notice('通知验证请求没有成功：' . $e->getMessage());
+      $this->logger->notice('通知验证请求没有成功：' . $e->getMessage());
       die('fail');
     }
-  }
-
-  /**
-   * @param \Drupal\commerce_order\Entity\Order $commerce_order
-   * @return \Drupal\commerce_payment\Entity\Payment
-   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
-   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
-   * @throws \Drupal\Core\Entity\EntityStorageException
-   */
-  public function createPayment(Order $commerce_order) {
-    /** @var \Drupal\commerce_payment\Plugin\Commerce\PaymentGateway\OffsitePaymentGatewayInterface $payment_gateway_plugin */
-    $payment_storage = $this->entityTypeManager->getStorage('commerce_payment');
-
-    $payment = $payment_storage->create([
-      'state' => 'new',
-      'amount' => $commerce_order->getTotalPrice(),
-      'payment_gateway' => $this->entityId,
-      'order_id' => $commerce_order,
-      'test' => $this->getMode() === 'test',
-    ]);
-
-    $payment->save();
-
-    return $payment;
-  }
-
-  /**
-   *
-   */
-  public function requestRedirectUrl($commerce_order, &$payment) {
-    require_once __DIR__ . '/../../../../alipay_sdks/alipay-sdk-PHP-4.2.0/aop/request/AlipayTradePagePayRequest.php';
-    $request = new \AlipayTradePagePayRequest();
-    $data = [
-      'product_code' => 'FAST_INSTANT_TRADE_PAY',
-    ];
-    $payment = $this->createPayment($commerce_order);
-    $request->setBizContent(json_encode($this->getBizContent($commerce_order, $payment, $data)));
-    return $this->getAopCertClient()->pageExecute($request, 'GET');
-  }
-
-  /**
-   *
-   * @param $commerce_order
-   * @param $payment
-   * @return void
-   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
-   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
-   * @throws \Drupal\Core\Entity\EntityStorageException
-   */
-  public function requestQRCode($commerce_order, &$payment) {
-
-    $client_type = $this->getConfiguration()['client_type'];
-    if ($client_type !== self::CLIENT_TYPE_FACE_TO_FACE) {
-      throw new \Exception('requestQRCode only support [' . self::CLIENT_TYPE_FACE_TO_FACE . '] client type.');
-    }
-
-    $request = $this->getOmniGateway('Alipay_AopF2F')->purchase();
-
-    $payment = $this->createPayment($commerce_order);
-    $data = [
-      'scene' => 'bar_code',
-    ];
-    $request->setBizContent($this->getBizContent($commerce_order, $payment, $data));
-
-    /** @var \Omnipay\Alipay\Responses\AopTradePreCreateResponse $response */
-    $response = $request->send();
-
-    if ($response->getCode() === 1000) {
-      return $response->getQrCode();
-    }
-    else {
-      throw new Exception($response->getMessage());
-    }
-  }
-
-  /**
-   *
-   */
-  private function getBizContent($commerce_order, $payment, &$data) {
-
-    $order_item_names = '';
-    foreach ($commerce_order->getItems() as $order_item) {
-      /** @var \Drupal\commerce_order\Entity\OrderItem $order_item */
-      $order_item_names .= $order_item->getTitle() . ', ';
-    }
-
-    $total_fee = $commerce_order->getTotalPrice()->getNumber();
-    if ($this->getMode() === 'test') {
-      $total_fee = '0.01';
-    }
-
-    return $data + [
-      'subject'      => mb_substr(\Drupal::config('system.site')->get('name') . $this->t(' Order: ') . $commerce_order->getOrderNumber(), 0, 256),
-      'body'         => mb_substr($order_item_names, 0, 128),
-    // 商户网站唯一订单号.
-      'out_trade_no' => $commerce_order->id() . '-' . $payment->id() . '-' . date('YmdHis') . mt_rand(1000, 9999),
-      'total_amount' => $total_fee,
-    ];
   }
 
 }
