@@ -8,9 +8,7 @@ use Drupal\commerce_payment\Entity\Payment;
 use Drupal\Core\Form\FormStateInterface;
 use Com\Tecnick\Barcode\Barcode;
 use Drupal\Core\Render\Markup;
-use Drupal\Core\Routing\TrustedRedirectResponse;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
-use Symfony\Component\HttpFoundation\RedirectResponse;
 
 /**
  * @link https://github.com/lokielse/omnipay-alipay/wiki/Aop-Face-To-Face-Gateway
@@ -29,15 +27,12 @@ class QRCodePaymentForm extends BasePaymentOffsiteForm {
     /** @var \Drupal\commerce_payment\Plugin\Commerce\PaymentGateway\OffsitePaymentGatewayInterface $payment_gateway_plugin */
     $payment_gateway_plugin = $payment->getPaymentGateway()->getPlugin();
 
-    $order    = $payment->getOrder();
-    /** @var \Drupal\commerce_payment\Entity\Payment $payment_entity */
-    $payment_entity = null;
+    $order = $payment->getOrder();
 
     $client_type = $payment->getPaymentGateway()->get('configuration')['client_type'];
 
-
     if ($client_type === AlipayGatewayInterface::CLIENT_TYPE_WEBSITE) {
-      $redirect_url = $payment_gateway_plugin->requestRedirectUrl($order, $payment_entity);
+      $redirect_url = $payment_gateway_plugin->requestRedirectUrl($order);
       $form['link'] = [
         '#type' => 'markup',
         '#markup' => $redirect_url
@@ -46,7 +41,7 @@ class QRCodePaymentForm extends BasePaymentOffsiteForm {
     } elseif ($client_type === AlipayGatewayInterface::CLIENT_TYPE_FACE_TO_FACE) {
 
       try {
-        $qrcode = $payment_gateway_plugin->requestQRCode($order, $payment_entity);
+        $qrcode = $payment_gateway_plugin->requestQrCode($order);
 
         $barcode = new Barcode();
         // generate a barcode
@@ -70,7 +65,7 @@ class QRCodePaymentForm extends BasePaymentOffsiteForm {
 
         $form['payment_id'] = [
           '#type' => 'value',
-          '#value' => $payment_entity->id(),
+          '#value' => $payment->id(),
         ];
 
         $form['cancel'] = [
@@ -78,9 +73,11 @@ class QRCodePaymentForm extends BasePaymentOffsiteForm {
           '#value' => $this->t('Cancel'),
         ];
 
-      } catch (\Exception $e) {
+      }
+      catch (\Exception $e) {
         $form['commerce_message'] = [
-          '#markup' => '<div class="checkout-help">' . t('Alipay QR-Code is not available at the moment. Message from Alipay service: ' . $e->getMessage().$qrcode),
+          '#markup' => '<div class="checkout-help">'
+          . t('Alipay QR-Code is not available at the moment. Message from Alipay service: ' . $e->getMessage().$qrcode),
           '#weight' => -10,
         ];
       }

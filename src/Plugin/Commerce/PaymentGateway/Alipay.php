@@ -116,16 +116,17 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
    * {@inheritdoc}
    */
   public function validateConfigurationForm(array &$form, FormStateInterface $form_state) {
-    if (!file_exists($form_state->getValue('app_private_key_path'))) {
+    $values = $form_state->getValue($form['#parents']);
+    if (!file_exists($values['app_private_key_path'])) {
       $form_state->setErrorByName('app_private_key_path', 'App private key path does not exist.');
     }
-    if (!file_exists($form_state->getValue('app_cert_public_key_path'))) {
+    if (!file_exists($values['app_cert_public_key_path'])) {
       $form_state->setErrorByName('app_cert_public_key_path', 'App cert public key path does not exist.');
     }
-    if (!file_exists($form_state->getValue('alipay_cert_public_key_path'))) {
+    if (!file_exists($values['alipay_cert_public_key_path'])) {
       $form_state->setErrorByName('alipay_cert_public_key_path', 'Alipay cert public key path does not exist.');
     }
-    if (!file_exists($form_state->getValue('alipay_root_cert_path'))) {
+    if (!file_exists($values['alipay_root_cert_path'])) {
       $form_state->setErrorByName('alipay_root_cert_path', 'Alipay root cert path does not exist.');
     }
   }
@@ -190,35 +191,6 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
   }
 
   /**
-   * Create a payment on new state.
-   *
-   * Transfer to completed of fails on notify receive.
-   *
-   * @param \Drupal\commerce_order\Entity\Order $commerce_order
-   *   The order to pay.
-   *
-   * @return \Drupal\commerce_payment\Entity\PaymentInterface
-   *   The saved payment.
-   *
-   * @throws \Drupal\Core\Entity\EntityStorageException
-   * @throws \Exception
-   */
-  public function createPayment(Order $commerce_order): PaymentInterface {
-    if ($commerce_order->getTotalPrice()->getCurrencyCode() !== 'CNY') {
-      throw new \Exception('Only CNY currency is supported.');
-    }
-    $payment = Payment::create([
-      'state' => 'new',
-      'amount' => $commerce_order->getTotalPrice(),
-      'payment_gateway' => $this->pluginId,
-      'order_id' => $commerce_order,
-      'test' => $this->getMode() === 'test',
-    ]);
-    $payment->save();
-    return $payment;
-  }
-
-  /**
    * Get pay order number.
    *
    * @param \Drupal\commerce_payment\Entity\PaymentInterface $payment
@@ -273,7 +245,7 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
    *
    * @throws \Exception
    */
-  public function getClientLaunchConfig($commerce_order) {
+  public function getClientLaunchConfig($commerce_order, PaymentInterface $payment) {
     $this->ensureEasySdkInitialized();
 
     // Call api alipay.trade.app.pay to build to orderStr.
@@ -281,15 +253,13 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
       throw new \Exception('Unsupported client type.');
     }
 
-    $payment = $this->createPayment($commerce_order);
-
     $result = Factory::payment()->app()->pay($this->getOrderItemNames($payment), $this->getPaymentOrderNumber($payment), $this->getPaymentAmount($payment));
     $responseChecker = new ResponseChecker();
     if (!$responseChecker->success($result)) {
       throw new \Exception("easySDK 调用失败，原因：" . $result->msg . "，" . $result->subMsg);
     }
     else {
-      return ['order_string' => $result->orderStr];
+      return ['order_string' => $result->body];
     }
   }
 
@@ -301,7 +271,7 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
    *
    * @throws \Drupal\Core\Entity\EntityStorageException
    */
-  public function requestRedirectUrl($commerce_order, &$payment) {
+  public function requestRedirectUrl($commerce_order, PaymentInterface $payment) {
     $this->ensureEasySdkInitialized();
 
     if ($this->getConfiguration()['client_type'] !== self::CLIENT_TYPE_WEBSITE) {
@@ -313,6 +283,29 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
     $response = Factory::payment()->page()->pay($this->getOrderItemNames($payment), $this->getPaymentOrderNumber($payment), $this->getPaymentAmount($payment), '@todo');
 
     return $response->pageRedirectionData;
+  }
+
+  /**
+   * Customer scan merchant QR-code to pay.
+   *
+   * @return string
+   *   Value to build qr-code.
+   *
+   * @throws \Drupal\Core\Entity\EntityStorageException
+   */
+  public function requestQrCode($commerce_order, PaymentInterface $payment) {
+
+    $this->ensureEasySdkInitialized();
+
+    if ($this->getConfiguration()['client_type'] !== self::CLIENT_TYPE_FACE_TO_FACE) {
+      throw new \Exception('Unsupported client type.');
+    }
+
+    // Call alipay\.trade\.page\.pay.
+    $payment = $this->createPayment($commerce_order);
+    $response = Factory::payment()->faceToFace()->preCreate($this->getOrderItemNames($payment), $this->getPaymentOrderNumber($payment), $this->getPaymentAmount($payment));
+
+    return $response->qr_code;
   }
 
   /**

@@ -4,12 +4,12 @@
 # * 'gtrp' and 'gtr' create a GET request with or without query parameters;
 # * 'ptr' and 'ptrp' create a POST request with a simple or parameter-like body;
 # * 'mptr' and 'fptr' create a POST request to submit a form with a text or file field (multipart/form-data);
-POST http://{{host}}/api/rest/alipay/payment?_format=json
+POST {{base_url}}/api/rest/alipay/payment?_format=json
 Content-Type: application/json
 
 {
-  "cart_id": "1",
-  "gateway": "alipay_native_app"
+  "cart_id": "2",
+  "gateway": "alipay_for_app"
 }
 
 ###

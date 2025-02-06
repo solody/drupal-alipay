@@ -1,0 +1,4 @@
+services:
+  logger.channel.alipay:
+    parent: logger.channel_base
+    arguments: [ 'alipay' ]

@@ -5,6 +5,7 @@ namespace Drupal\alipay\Plugin\rest\resource;
 use Drupal\alipay\AlipayGatewayInterface;
 use Drupal\commerce_order\Entity\Order;
 use Drupal\commerce_order\Entity\OrderInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\rest\ModifiedResourceResponse;
 use Drupal\rest\Plugin\ResourceBase;
@@ -34,6 +35,13 @@ class AlipayPayment extends ResourceBase {
   protected $currentUser;
 
   /**
+   * The entity type manager.
+   *
+   * @var \Drupal\Core\Entity\EntityTypeManagerInterface
+   */
+  protected $entityTypeManager;
+
+  /**
    * Constructs a new PaymentResource object.
    *
    * @param array $configuration
@@ -55,10 +63,12 @@ class AlipayPayment extends ResourceBase {
     $plugin_definition,
     array $serializer_formats,
     LoggerInterface $logger,
-    AccountProxyInterface $current_user) {
+    AccountProxyInterface $current_user,
+    EntityTypeManagerInterface $entity_type_manager,
+  ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition, $serializer_formats, $logger);
-
     $this->currentUser = $current_user;
+    $this->entityTypeManager = $entity_type_manager;
   }
 
   /**
@@ -71,7 +81,8 @@ class AlipayPayment extends ResourceBase {
       $plugin_definition,
       $container->getParameter('serializer.formats'),
       $container->get('logger.factory')->get('alipay'),
-      $container->get('current_user')
+      $container->get('current_user'),
+      $container->get('entity_type.manager'),
     );
   }
 
@@ -111,13 +122,23 @@ class AlipayPayment extends ResourceBase {
     }
 
     $commerce_order = Order::load($data['cart_id']);
+
+    $payment_storage = $this->entityTypeManager->getStorage('commerce_payment');
+    /** @var \Drupal\commerce_payment\Entity\PaymentInterface $payment */
+    $payment = $payment_storage->create([
+      'state' => 'new',
+      'amount' => $commerce_order->getBalance(),
+      'payment_gateway' => $payment_gateway->id(),
+      'order_id' => $commerce_order->id(),
+    ]);
+
     if ($commerce_order->get('state')->value !== 'draft') {
       throw new BadRequestHttpException('订单不符合支付条件，只能支付未下单(place)的订单。');
     }
     $commerce_order->set('payment_gateway', $payment_gateway);
     $commerce_order->save();
 
-    $config_data = $payment_gateway_plugin->getClientLaunchConfig($commerce_order);
+    $config_data = $payment_gateway_plugin->getClientLaunchConfig($commerce_order, $payment);
 
     return new ModifiedResourceResponse($config_data, 200);
   }
