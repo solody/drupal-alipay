@@ -8,3 +8,4 @@ dependencies:
   - commerce:commerce_payment
   - commerce:commerce_order
   - commerce_checkout_api:commerce_checkout_api
+  - drupal:rest
