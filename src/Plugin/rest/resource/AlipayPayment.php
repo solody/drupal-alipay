@@ -143,11 +143,4 @@ class AlipayPayment extends ResourceBase {
     return new ModifiedResourceResponse($config_data, 200);
   }
 
-  /**
-   * 暂时不做权限检查
-   * @inheritdoc
-   */
-  public function permissions() {
-    return [];
-  }
 }
