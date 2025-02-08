@@ -49,6 +49,9 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
    */
   private LoggerInterface $logger;
 
+  /**
+   * The EasySDKKernel.
+   */
   private EasySDKKernel $kernel;
 
   /**
