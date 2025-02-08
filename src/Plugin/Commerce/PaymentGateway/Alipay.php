@@ -19,6 +19,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Alipay\EasySDK\Kernel\Factory;
 use Alipay\EasySDK\Kernel\Config;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Alipay CommercePaymentGateway plugin.
@@ -274,6 +275,7 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
       throw new \Exception('Unsupported client type.');
     }
 
+    $payment->save();
     $result = Factory::payment()->app()->pay($this->getOrderItemNames($payment), $this->getPaymentOrderNumber($payment), $this->getPaymentAmount($payment));
     $responseChecker = new ResponseChecker();
     if (!$responseChecker->success($result)) {
@@ -341,6 +343,8 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
    *
    * @param string $content
    *   The content to verify.
+   * @param string $signature
+   *   The signature to verify.
    *
    * @return bool
    *   Indicated if success.
@@ -363,12 +367,17 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
 
     $this->ensureEasySdkInitialized();
 
+    $response_content = '';
+
     try {
       if (isset($request->toArray()['sync_notify_from_app'])) {
         $rs = json_decode($request->toArray()['result'], TRUE);
 
         if ($this->verifyContent(json_encode($rs['alipay_trade_app_pay_response']), $rs['sign'])) {
           $this->logger->notice('App sync notification verified successfully.');
+
+          // Make payment completed.
+          $this->processPayment($rs['alipay_trade_app_pay_response']);
         }
         else {
           $this->logger->notice('App sync notification verified fails.');
@@ -377,50 +386,75 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
       else {
         if (Factory::payment()->common()->verifyNotify($request->toArray())) {
           $this->logger->notice('通知验证成功。');
-
-          // 处理订单状态
-          // load the payment.
-          $payment_id = NULL;
-          $id_info = explode('-', $request->get('out_trade_no'));
-          if ($id_info && count($id_info) === 2) {
-            $payment_id = $id_info[1];
+          if ($this->processPayment($request->toArray())) {
+            $response_content = 'success';
           }
           else {
-            $this->logger->error('out_trade_no不是预期格式[' . $request->get('out_trade_no') . ']: ');
-            die('fail');
+            $response_content = 'fail';
           }
-
-          /** @var \Drupal\commerce_payment\Entity\Payment $payment_entity */
-          $payment_entity = Payment::load($payment_id);
-          if ($payment_entity instanceof PaymentInterface) {
-            $payment_entity->setState('completed');
-            $payment_entity->setRemoteId($request->get('trade_no'));
-            $payment_entity->save();
-
-            $order = $payment_entity->getOrder();
-            $transition = $order->getState()->getWorkflow()->getTransition('place');
-            $order->getState()->applyTransition($transition);
-            $order->save();
-          }
-          else {
-            // Payment doesn't exist.
-            $this->logger->error('找不到支付订单[' . $payment_id . ']: ');
-            die('fail');
-          }
-
-          die('success');
         }
         else {
           $this->logger->notice('通知验证失败。');
-          die('fail');
+          $response_content = 'fail';
         }
       }
-
     }
     catch (\Exception $e) {
       $this->logger->notice('通知验证请求没有成功：' . $e->getMessage());
-      die('fail');
+      $response_content = 'fail';
     }
+
+    return $this->getNotificationResponse($response_content);
+  }
+
+  /**
+   * Get response object for the notification.
+   *
+   * @param string $content
+   *   Response body.
+   *
+   * @return \Symfony\Component\HttpFoundation\Response
+   *   Response for the notification.
+   */
+  public function getNotificationResponse(string $content): Response {
+    return new Response($content, 200);
+  }
+
+  /**
+   * Process payment for notify.
+   */
+  public function processPayment(array $result): bool {
+
+    // Load the payment.
+    $payment_id = '';
+    $id_info = explode('-', $result['out_trade_no']);
+    if ($id_info && count($id_info) === 2) {
+      $payment_id = $id_info[1];
+    }
+    else {
+      $this->logger->error('out_trade_no不是预期格式[' . $result['out_trade_no'] . ']: ');
+      return FALSE;
+    }
+
+    /** @var \Drupal\commerce_payment\Entity\Payment $payment_entity */
+    $payment_entity = Payment::load($payment_id);
+    if ($payment_entity instanceof PaymentInterface) {
+      $payment_entity->setState('completed');
+      $payment_entity->setRemoteId($result['trade_no']);
+      $payment_entity->save();
+
+      $order = $payment_entity->getOrder();
+      $transition = $order->getState()->getWorkflow()->getTransition('place');
+      $order->getState()->applyTransition($transition);
+      $order->save();
+    }
+    else {
+      // Payment doesn't exist.
+      $this->logger->error('找不到支付订单[' . $payment_id . ']: ');
+      return FALSE;
+    }
+
+    return TRUE;
   }
 
 }
