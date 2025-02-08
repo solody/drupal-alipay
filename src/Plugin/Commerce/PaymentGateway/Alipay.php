@@ -365,7 +365,7 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
 
     try {
       if (isset($request->toArray()['sync_notify_from_app'])) {
-        $rs = json_decode($request->toArray()['rs'], TRUE);
+        $rs = json_decode($request->toArray()['result'], TRUE);
 
         if ($this->verifyContent(json_encode($rs['alipay_trade_app_pay_response']), $rs['sign'])) {
           $this->logger->notice('App sync notification verified successfully.');
