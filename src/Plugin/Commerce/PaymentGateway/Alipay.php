@@ -2,8 +2,10 @@
 
 namespace Drupal\alipay\Plugin\Commerce\PaymentGateway;
 
+use Alipay\EasySDK\Kernel\CertEnvironment;
+use Alipay\EasySDK\Kernel\EasySDKKernel;
 use Alipay\EasySDK\Kernel\Util\ResponseChecker;
-use Drupal\commerce_order\Entity\Order;
+use Alipay\EasySDK\Kernel\Util\Signer;
 use Drupal\commerce_payment\Entity\Payment;
 use Drupal\commerce_payment\Entity\PaymentInterface;
 use Drupal\commerce_payment\Plugin\Commerce\PaymentGateway\OffsitePaymentGatewayBase;
@@ -45,6 +47,8 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
    * The logger for this channel.
    */
   private LoggerInterface $logger;
+
+  private EasySDKKernel $kernel;
 
   /**
    * {@inheritdoc}
@@ -187,6 +191,23 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
     $options->encryptKey = $this->configuration['app_private_key_path'];
 
     Factory::setOptions($options);
+
+    $config = $options;
+
+    if (!empty($config->alipayCertPath)) {
+      $certEnvironment = new CertEnvironment();
+      $certEnvironment->certEnvironment(
+        $config->merchantCertPath,
+        $config->alipayCertPath,
+        $config->alipayRootCertPath
+      );
+      $config->merchantCertSN = $certEnvironment->getMerchantCertSN();
+      $config->alipayRootCertSN = $certEnvironment->getRootCertSN();
+      $config->alipayPublicKey = $certEnvironment->getCachedAlipayPublicKey();
+    }
+
+    $this->kernel = new EasySDKKernel($config);
+
     $this->easySDKInitialized = TRUE;
   }
 
@@ -316,56 +337,85 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
   }
 
   /**
+   * Verify content of alipay.
+   *
+   * @param string $content
+   *   The content to verify.
+   *
+   * @return bool
+   *   Indicated if success.
+   */
+  public function verifyContent(string $content, string $signature) {
+    $signer = new Signer();
+    $alipay_public_key = $this->kernel->isCertMode() ? $this->kernel->extractAlipayPublicKey("") : $this->kernel->getConfig("alipayPublicKey");
+    return $signer->verify($content, $signature, $alipay_public_key);
+  }
+
+  /**
    * {@inheritdoc}
+   *
+   * Https://opendocs.alipay.com/open/00iki4?pathHash=eab39489 同步通知说明.
    *
    * @throws \Exception
    */
   public function onNotify(Request $request) {
-    $this->logger->info('接收到来自支付宝的通知：' . print_r($request->toArray(), TRUE));
+    $this->logger->info('Received alipay notification: ' . print_r($request->toArray(), TRUE));
 
     $this->ensureEasySdkInitialized();
 
     try {
+      if (isset($request->toArray()['sync_notify_from_app'])) {
+        $rs = json_decode($request->toArray()['rs'], TRUE);
 
-      if (Factory::payment()->common()->verifyNotify($request->toArray())) {
-        \Drupal::logger('alipay')->notice('通知验证成功。');
-
-        // 处理订单状态
-        // load the payment.
-        $payment_id = NULL;
-        $id_info = explode('-', $request->get('out_trade_no'));
-        if ($id_info && count($id_info) === 2) {
-          $payment_id = $id_info[1];
+        if ($this->verifyContent(json_encode($rs['alipay_trade_app_pay_response']), $rs['sign'])) {
+          $this->logger->notice('App sync notification verified successfully.');
         }
         else {
-          $this->logger->error('out_trade_no不是预期格式[' . $request->get('out_trade_no') . ']: ');
-          die('fail');
+          $this->logger->notice('App sync notification verified fails.');
         }
-
-        /** @var \Drupal\commerce_payment\Entity\Payment $payment_entity */
-        $payment_entity = Payment::load($payment_id);
-        if ($payment_entity instanceof PaymentInterface) {
-          $payment_entity->setState('completed');
-          $payment_entity->setRemoteId($request->get('trade_no'));
-          $payment_entity->save();
-
-          $order = $payment_entity->getOrder();
-          $transition = $order->getState()->getWorkflow()->getTransition('place');
-          $order->getState()->applyTransition($transition);
-          $order->save();
-        }
-        else {
-          // Payment doesn't exist.
-          $this->logger->error('找不到支付订单[' . $payment_id . ']: ');
-          die('fail');
-        }
-
-        die('success');
       }
       else {
-        $this->logger->notice('通知验证失败。');
-        die('fail');
+        if (Factory::payment()->common()->verifyNotify($request->toArray())) {
+          $this->logger->notice('通知验证成功。');
+
+          // 处理订单状态
+          // load the payment.
+          $payment_id = NULL;
+          $id_info = explode('-', $request->get('out_trade_no'));
+          if ($id_info && count($id_info) === 2) {
+            $payment_id = $id_info[1];
+          }
+          else {
+            $this->logger->error('out_trade_no不是预期格式[' . $request->get('out_trade_no') . ']: ');
+            die('fail');
+          }
+
+          /** @var \Drupal\commerce_payment\Entity\Payment $payment_entity */
+          $payment_entity = Payment::load($payment_id);
+          if ($payment_entity instanceof PaymentInterface) {
+            $payment_entity->setState('completed');
+            $payment_entity->setRemoteId($request->get('trade_no'));
+            $payment_entity->save();
+
+            $order = $payment_entity->getOrder();
+            $transition = $order->getState()->getWorkflow()->getTransition('place');
+            $order->getState()->applyTransition($transition);
+            $order->save();
+          }
+          else {
+            // Payment doesn't exist.
+            $this->logger->error('找不到支付订单[' . $payment_id . ']: ');
+            die('fail');
+          }
+
+          die('success');
+        }
+        else {
+          $this->logger->notice('通知验证失败。');
+          die('fail');
+        }
       }
+
     }
     catch (\Exception $e) {
       $this->logger->notice('通知验证请求没有成功：' . $e->getMessage());
