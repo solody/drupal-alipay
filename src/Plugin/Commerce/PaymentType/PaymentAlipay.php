@@ -1,7 +1,8 @@
 <?php
 
-namespace Drupal\commerce_payment\Plugin\Commerce\PaymentType;
+namespace Drupal\alipay\Plugin\Commerce\PaymentType;
 
+use Drupal\commerce_payment\Plugin\Commerce\PaymentType\PaymentTypeBase;
 use Drupal\Core\Field\BaseFieldDefinition;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\commerce_payment\Attribute\CommercePaymentType;
