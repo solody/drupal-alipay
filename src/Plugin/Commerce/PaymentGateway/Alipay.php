@@ -278,8 +278,10 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
       throw new \Exception('Unsupported client type.');
     }
 
+    $trade_tracking_id = $this->getPaymentOrderNumber($payment);
+    $payment->set('trade_tracking_id', $trade_tracking_id);
     $payment->save();
-    $result = Factory::payment()->app()->pay($this->getOrderItemNames($payment), $this->getPaymentOrderNumber($payment), $this->getPaymentAmount($payment));
+    $result = Factory::payment()->app()->pay($this->getOrderItemNames($payment), $trade_tracking_id, $this->getPaymentAmount($payment));
     $responseChecker = new ResponseChecker();
     if (!$responseChecker->success($result)) {
       throw new \Exception("easySDK 调用失败，原因：" . $result->msg . "，" . $result->subMsg);
@@ -304,9 +306,11 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
       throw new \Exception('Unsupported client type.');
     }
 
+    $trade_tracking_id = $this->getPaymentOrderNumber($payment);
+    $payment->set('trade_tracking_id', $trade_tracking_id);
+    $payment->save();
     // Call alipay\.trade\.page\.pay.
-    $payment = $this->createPayment($commerce_order);
-    $response = Factory::payment()->page()->pay($this->getOrderItemNames($payment), $this->getPaymentOrderNumber($payment), $this->getPaymentAmount($payment), '@todo');
+    $response = Factory::payment()->page()->pay($this->getOrderItemNames($payment), $trade_tracking_id, $this->getPaymentAmount($payment), '@todo');
 
     return $response->pageRedirectionData;
   }
@@ -327,9 +331,11 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
       throw new \Exception('Unsupported client type.');
     }
 
+    $trade_tracking_id = $this->getPaymentOrderNumber($payment);
+    $payment->set('trade_tracking_id', $trade_tracking_id);
+    $payment->save();
     // Call alipay\.trade\.page\.pay.
-    $payment = $this->createPayment($commerce_order);
-    $response = Factory::payment()->faceToFace()->preCreate($this->getOrderItemNames($payment), $this->getPaymentOrderNumber($payment), $this->getPaymentAmount($payment));
+    $response = Factory::payment()->faceToFace()->preCreate($this->getOrderItemNames($payment), $trade_tracking_id, $this->getPaymentAmount($payment));
 
     return $response->qr_code;
   }
@@ -337,8 +343,20 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
   /**
    * {@inheritdoc}
    */
-  public function refundPayment(PaymentInterface $payment, ?Price $amount = NULL) {
+  public function canRefundPayment(PaymentInterface $payment) {
+    return $payment->getBalance()->isPositive() && !$payment->get('trade_tracking_id')->isEmpty();
+  }
 
+  /**
+   * {@inheritdoc}
+   */
+  public function refundPayment(PaymentInterface $payment, ?Price $amount = NULL) {
+    $this->ensureEasySdkInitialized();
+    $rs = Factory::payment()->common()
+      ->refund(
+        $payment->trade_tracking_id->value,
+        $this->getMode() === 'test' ? '0.01' : $amount->getNumber()
+      );
   }
 
   /**
