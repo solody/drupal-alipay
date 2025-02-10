@@ -353,11 +353,13 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
    */
   public function refundPayment(PaymentInterface $payment, ?Price $amount = NULL) {
     $this->ensureEasySdkInitialized();
+    // Create an refund entity.
     $rs = Factory::payment()->common()
       ->refund(
         $payment->trade_tracking_id->value,
         $this->getMode() === 'test' ? '0.01' : $amount->getNumber()
       );
+    // @todo to process the response.
   }
 
   /**

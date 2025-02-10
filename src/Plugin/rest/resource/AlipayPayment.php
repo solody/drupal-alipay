@@ -4,7 +4,6 @@ namespace Drupal\alipay\Plugin\rest\resource;
 
 use Drupal\alipay\AlipayGatewayInterface;
 use Drupal\commerce_order\Entity\Order;
-use Drupal\commerce_order\Entity\OrderInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\rest\ModifiedResourceResponse;
@@ -89,11 +88,11 @@ class AlipayPayment extends ResourceBase {
   /**
    * Responds to POST requests.
    *
-   * @param OrderInterface $commerce_order
+   * @param \Drupal\commerce_order\Entity\OrderInterface $commerce_order
    * @param array $unserialized
+   *
    * @return \Drupal\rest\ModifiedResourceResponse
    *   The HTTP response object.
-   *
    */
   public function post(array $data) {
 
@@ -103,7 +102,7 @@ class AlipayPayment extends ResourceBase {
       throw new AccessDeniedHttpException();
     }
 
-    // 检查用户选择的支付方式，保存到订单
+    // 检查用户选择的支付方式，保存到订单.
     if (!isset($data['gateway_id'])) {
       throw new BadRequestHttpException('没有指定网关');
     }
@@ -126,6 +125,7 @@ class AlipayPayment extends ResourceBase {
     $payment_storage = $this->entityTypeManager->getStorage('commerce_payment');
     /** @var \Drupal\commerce_payment\Entity\PaymentInterface $payment */
     $payment = $payment_storage->create([
+      'type' => $payment_gateway_plugin->getPaymentType(),
       'state' => 'new',
       'amount' => $commerce_order->getBalance(),
       'payment_gateway' => $payment_gateway->id(),
