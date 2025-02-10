@@ -356,6 +356,14 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
    * {@inheritdoc}
    */
   public function refundPayment(PaymentInterface $payment, ?Price $amount = NULL) {
+    // This method might be called from:
+    // 1. Payment entity refund operation form.
+    // 2. Refund entity.
+    $this->assertPaymentState($payment, ['completed', 'partially_refunded']);
+    // If not specified, refund the entire amount.
+    $amount = $amount ?: $payment->getAmount();
+    $this->assertRefundAmount($payment, $amount);
+
     $this->ensureEasySdkInitialized();
     // Create an refund entity.
     $rs = Factory::payment()->common()
@@ -363,13 +371,26 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
         $payment->trade_tracking_id->value,
         $this->getMode() === 'test' ? '0.01' : $amount->getNumber()
       );
-    // @todo to process the response.
+    // @todo Verify the $rs->httpBody.
     $code = $rs->code;
     $fee = $rs->refundFee;
     $body = $rs->httpBody;
     $trade_no = $rs->tradeNo;
     $out_trade_no = $rs->outTradeNo;
     // $body = {"alipay_trade_refund_response":{"code":"10000","msg":"Success","buyer_logon_id":"129***@qq.com","fund_change":"Y","gmt_refund_pay":"2025-02-10 14:22:14","out_trade_no":"202502101417081282-21","refund_detail_item_list":[{"amount":"0.01","fund_channel":"ALIPAYACCOUNT"}],"refund_fee":"0.01","send_back_fee":"0.01","trade_no":"2025021022001472541430920598","buyer_open_id":"0543v3Ch5stl8XBZW845p4RmmVl8W3YM-Y4eCvAesSaz4Aa"},"alipay_cert_sn":"dda2416c0aa167d93fed1e01e3dca2b1","sign":"gPQf/nUQZaKJdcPwaTf/YGZWYmf6WGT3yFBswdEMQ4usqa6rSIwTT4NHoEFuJKTLH5Q2cCgZ25xiXRMzjZuZvlnrfCcb1GvCXs54+QN3sKwjWVjkIeMnXSE0kS64f4FTtmWAOgxIu7TN+uG3rYmAN+cRox+QCboaoTl32EuLjmjW3YVjx8nk/MZKdgBX9yZHmJNuRkgSWhj3yepDjBC1ptoVmpUjsThLAzs53kXIGsxAuclnx5cdXRL+XrQ3e6tUr/Pr+3iO716wDw/+JHlz7QAxaj9ZO1i9wYJOZ84t/OxA39bNUlqTVRG629AdnRbNi5jFJEoBFXMozrqq5ZvhfQ=="}
+
+    // Update the payment balance.
+    $old_refunded_amount = $payment->getRefundedAmount();
+    $new_refunded_amount = $old_refunded_amount->add($amount);
+    if ($new_refunded_amount->lessThan($payment->getAmount())) {
+      $payment->setState('partially_refunded');
+    }
+    else {
+      $payment->setState('refunded');
+    }
+
+    $payment->setRefundedAmount($new_refunded_amount);
+    $payment->save();
   }
 
   /**
