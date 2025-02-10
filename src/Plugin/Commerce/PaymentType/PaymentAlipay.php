@@ -23,7 +23,7 @@ class PaymentAlipay extends PaymentTypeBase {
     $fields = [];
     $fields['trade_tracking_id'] = BaseFieldDefinition::create('string')
       ->setLabel($this->t('Trade tracking id'))
-      ->setDescription($this->t('The trade tracking id.'))
+      ->setDescription($this->t('Keep the out_trade_no for refund.'))
       ->setDisplayConfigurable('view', TRUE);
     return $fields;
   }
