@@ -6,11 +6,14 @@ use Alipay\EasySDK\Kernel\CertEnvironment;
 use Alipay\EasySDK\Kernel\EasySDKKernel;
 use Alipay\EasySDK\Kernel\Util\ResponseChecker;
 use Alipay\EasySDK\Kernel\Util\Signer;
+use Drupal\commerce_checkout_api\SupportHeadlessPaymentInterface;
 use Drupal\commerce_payment\Entity\Payment;
 use Drupal\commerce_payment\Entity\PaymentInterface;
 use Drupal\commerce_payment\Plugin\Commerce\PaymentGateway\OffsitePaymentGatewayBase;
 use Drupal\commerce_payment\Plugin\Commerce\PaymentGateway\SupportsRefundsInterface;
 use Drupal\commerce_price\Price;
+use Drupal\commerce_refund\Entity\RefundInterface;
+use Drupal\commerce_refund\SupportsRefundEntityInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\alipay\AlipayGatewayInterface;
@@ -34,7 +37,11 @@ use Symfony\Component\HttpFoundation\Response;
  *   }
  * )
  */
-class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterface, AlipayGatewayInterface {
+class Alipay extends OffsitePaymentGatewayBase implements
+  SupportHeadlessPaymentInterface,
+  SupportsRefundsInterface,
+  SupportsRefundEntityInterface,
+  AlipayGatewayInterface {
 
   use StringTranslationTrait;
 
@@ -378,7 +385,6 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
     $trade_no = $rs->tradeNo;
     $out_trade_no = $rs->outTradeNo;
     // $body = {"alipay_trade_refund_response":{"code":"10000","msg":"Success","buyer_logon_id":"129***@qq.com","fund_change":"Y","gmt_refund_pay":"2025-02-10 14:22:14","out_trade_no":"202502101417081282-21","refund_detail_item_list":[{"amount":"0.01","fund_channel":"ALIPAYACCOUNT"}],"refund_fee":"0.01","send_back_fee":"0.01","trade_no":"2025021022001472541430920598","buyer_open_id":"0543v3Ch5stl8XBZW845p4RmmVl8W3YM-Y4eCvAesSaz4Aa"},"alipay_cert_sn":"dda2416c0aa167d93fed1e01e3dca2b1","sign":"gPQf/nUQZaKJdcPwaTf/YGZWYmf6WGT3yFBswdEMQ4usqa6rSIwTT4NHoEFuJKTLH5Q2cCgZ25xiXRMzjZuZvlnrfCcb1GvCXs54+QN3sKwjWVjkIeMnXSE0kS64f4FTtmWAOgxIu7TN+uG3rYmAN+cRox+QCboaoTl32EuLjmjW3YVjx8nk/MZKdgBX9yZHmJNuRkgSWhj3yepDjBC1ptoVmpUjsThLAzs53kXIGsxAuclnx5cdXRL+XrQ3e6tUr/Pr+3iO716wDw/+JHlz7QAxaj9ZO1i9wYJOZ84t/OxA39bNUlqTVRG629AdnRbNi5jFJEoBFXMozrqq5ZvhfQ=="}
-
     // Update the payment balance.
     $old_refunded_amount = $payment->getRefundedAmount();
     $new_refunded_amount = $old_refunded_amount->add($amount);
@@ -510,6 +516,10 @@ class Alipay extends OffsitePaymentGatewayBase implements SupportsRefundsInterfa
     }
 
     return TRUE;
+  }
+
+  public function refreshRefund(RefundInterface $refund) {
+    // TODO: Implement refreshRefund() method.
   }
 
 }

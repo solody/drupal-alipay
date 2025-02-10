@@ -9,3 +9,4 @@ dependencies:
   - commerce:commerce_order
   - commerce_checkout_api:commerce_checkout_api
   - drupal:rest
+  - commerce_refund:commerce_refund

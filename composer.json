@@ -14,6 +14,7 @@
     "tecnickcom/tc-lib-barcode": "^1.15",
     "drupal/commerce": "^3.0",
     "drupal/commerce_checkout_api": "1.0.x-dev",
-    "alipaysdk/easysdk": "^2.0"
+    "alipaysdk/easysdk": "^2.0",
+    "drupal/commerce_refund": "2.0.x-dev"
   }
 }
