@@ -28,6 +28,7 @@ use Symfony\Component\HttpFoundation\Response;
  *   id = "alipay",
  *   label = "Alipay",
  *   display_label = "Alipay",
+ *   payment_type = "payment_alipay",
  *   forms = {
  *     "offsite-payment" = "Drupal\alipay\PluginForm\QRCodePaymentForm",
  *   }
