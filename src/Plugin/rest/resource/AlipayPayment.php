@@ -125,7 +125,7 @@ class AlipayPayment extends ResourceBase {
     $payment_storage = $this->entityTypeManager->getStorage('commerce_payment');
     /** @var \Drupal\commerce_payment\Entity\PaymentInterface $payment */
     $payment = $payment_storage->create([
-      'type' => $payment_gateway_plugin->getPaymentType(),
+      'type' => $payment_gateway_plugin->getPaymentType()->getPluginId(),
       'state' => 'new',
       'amount' => $commerce_order->getBalance(),
       'payment_gateway' => $payment_gateway->id(),
