@@ -6,9 +6,9 @@ use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
 
 /**
- * Class SettingsForm.
+ * The form to edit transfer settings.
  */
-class SettingsForm extends ConfigFormBase {
+class TransferSettingsForm extends ConfigFormBase {
 
   /**
    * {@inheritdoc}
@@ -23,7 +23,7 @@ class SettingsForm extends ConfigFormBase {
    * {@inheritdoc}
    */
   public function getFormId() {
-    return 'alipay_settings_form';
+    return 'alipay_transfer_settings_form';
   }
 
   /**
@@ -34,19 +34,20 @@ class SettingsForm extends ConfigFormBase {
 
     $form['transfer_poundage_enable'] = [
       '#type' => 'checkbox',
-      '#title' => $this->t('启用转账手续费'),
-      '#description' => $this->t('在转账时，自动从转账的金额中扣除一定比例的手续费，实际的转账金额将是扣除手续费后的金额。'),
+      '#title' => $this->t('Enable transfer poundage'),
+      '#description' => $this->t('Automatically subtract poundage before transfer.'),
       '#default_value' => $config->get('transfer_poundage.enable'),
       '#weight' => '0',
     ];
     $form['transfer_poundage_percentage'] = [
       '#type' => 'number',
-      '#title' => $this->t('手续费比例'),
+      '#title' => $this->t('Percentage'),
+      '#description' => $this->t('Percentage of poundage will be subtract.'),
       '#default_value' => $config->get('transfer_poundage.percentage'),
       '#min' => 0.00,
       '#max' => 100.00,
       '#step' => 0.01,
-      '#field_suffix' => '%'
+      '#field_suffix' => '%',
     ];
     $form['submit'] = [
       '#type' => 'submit',

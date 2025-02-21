@@ -1,6 +1,6 @@
-alipay.setting:
-  title: 'Alipay settings'
-  route_name: alipay.alipay_settings_form
-  description: 'Alipay base settings.'
-  parent: system.admin_config
+alipay.transfer_setting:
+  title: 'Alipay transfer settings'
+  route_name: alipay.alipay_transfer_settings_form
+  description: 'Alipay transfer settings.'
+  parent: account.admin_root.config
   weight: 0

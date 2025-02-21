@@ -1,9 +1,9 @@
 
-alipay.alipay_settings_form:
-  path: '/admin/alipay/settings'
+alipay.alipay_transfer_settings_form:
+  path: '/admin/finance/config/alipay/settings'
   defaults:
-    _form: '\Drupal\alipay\Form\SettingsForm'
-    _title: 'Alipay settings'
+    _form: '\Drupal\alipay\Form\TransferSettingsForm'
+    _title: 'Alipay transfer settings'
   requirements:
     _access: 'TRUE'
-  
+
