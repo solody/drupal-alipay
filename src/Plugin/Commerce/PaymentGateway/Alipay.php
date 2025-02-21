@@ -6,6 +6,8 @@ use Alipay\EasySDK\Kernel\CertEnvironment;
 use Alipay\EasySDK\Kernel\EasySDKKernel;
 use Alipay\EasySDK\Kernel\Util\ResponseChecker;
 use Alipay\EasySDK\Kernel\Util\Signer;
+use Drupal\alipay\AlipayEasySdkTrait;
+use Drupal\alipay\Form\AlipayConfigFormTrait;
 use Drupal\commerce_checkout_api\SupportHeadlessPaymentInterface;
 use Drupal\commerce_payment\Entity\Payment;
 use Drupal\commerce_payment\Entity\PaymentInterface;
@@ -45,13 +47,11 @@ class Alipay extends OffsitePaymentGatewayBase implements
   AlipayGatewayInterface {
 
   use StringTranslationTrait;
-
-  /**
-   * Indicated easySDK initialized.
-   *
-   * @var bool
-   */
-  private $easySDKInitialized = FALSE;
+  use AlipayConfigFormTrait {
+    AlipayConfigFormTrait::buildConfigurationForm as buildAlipayConfigurationForm;
+    AlipayConfigFormTrait::submitConfigurationForm as submitAlipayConfigurationForm;
+  }
+  use AlipayEasySdkTrait;
 
   /**
    * The logger for this channel.
@@ -77,7 +77,6 @@ class Alipay extends OffsitePaymentGatewayBase implements
    */
   public function buildConfigurationForm(array $form, FormStateInterface $form_state) {
     $form = parent::buildConfigurationForm($form, $form_state);
-
     $form['client_type'] = [
       '#type' => 'radios',
       '#title' => $this->t('Application type to use this gateway.'),
@@ -89,63 +88,7 @@ class Alipay extends OffsitePaymentGatewayBase implements
       '#default_value' => $this->configuration['client_type'] ?? self::CLIENT_TYPE_NATIVE_APP,
       '#required' => TRUE,
     ];
-
-    $form['app_id'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('App ID'),
-      '#description' => $this->t('Alipay created App ID.'),
-      '#default_value' => $this->configuration['app_id'] ?? '',
-      '#required' => TRUE,
-    ];
-
-    $form['app_private_key_path'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('App private key path'),
-      '#description' => $this->t('The app private key'),
-      '#default_value' => $this->configuration['app_private_key_path'] ?? '',
-    ];
-
-    $form['app_cert_public_key_path'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('App cert public key path'),
-      '#description' => $this->t('Something like /foo/appCertPublicKey_2019051064521003.crt.'),
-      '#default_value' => $this->configuration['app_cert_public_key_path'] ?? '',
-    ];
-
-    $form['alipay_cert_public_key_path'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('Alipay cert public key path'),
-      '#description' => $this->t('Something like /foo/alipayCertPublicKey_RSA2.crt'),
-      '#default_value' => $this->configuration['alipay_cert_public_key_path'] ?? '',
-    ];
-
-    $form['alipay_root_cert_path'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('Alipay root cert path'),
-      '#description' => $this->t('Something like /foo/alipayRootCert.crt'),
-      '#default_value' => $this->configuration['alipay_root_cert_path'] ?? '',
-    ];
-
-    return $form;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function validateConfigurationForm(array &$form, FormStateInterface $form_state) {
-    $values = $form_state->getValue($form['#parents']);
-    if (!file_exists($values['app_private_key_path'])) {
-      $form_state->setErrorByName('app_private_key_path', 'App private key path does not exist.');
-    }
-    if (!file_exists($values['app_cert_public_key_path'])) {
-      $form_state->setErrorByName('app_cert_public_key_path', 'App cert public key path does not exist.');
-    }
-    if (!file_exists($values['alipay_cert_public_key_path'])) {
-      $form_state->setErrorByName('alipay_cert_public_key_path', 'Alipay cert public key path does not exist.');
-    }
-    if (!file_exists($values['alipay_root_cert_path'])) {
-      $form_state->setErrorByName('alipay_root_cert_path', 'Alipay root cert path does not exist.');
-    }
+    return $this->buildAlipayConfigurationForm($form, $form_state);
   }
 
   /**
@@ -156,72 +99,8 @@ class Alipay extends OffsitePaymentGatewayBase implements
     if (!$form_state->getErrors()) {
       $values = $form_state->getValue($form['#parents']);
       $this->configuration['client_type'] = $values['client_type'];
-      $this->configuration['app_id'] = $values['app_id'];
-      $this->configuration['app_private_key_path'] = $values['app_private_key_path'];
-      $this->configuration['app_cert_public_key_path'] = $values['app_cert_public_key_path'];
-      $this->configuration['alipay_cert_public_key_path'] = $values['alipay_cert_public_key_path'];
-      $this->configuration['alipay_root_cert_path'] = $values['alipay_root_cert_path'];
     }
-  }
-
-  /**
-   * Initial the easySdk.
-   */
-  public function ensureEasySdkInitialized(): void {
-
-    if ($this->easySDKInitialized) {
-      return;
-    }
-
-    // Initialize the easySDK.
-    $options = new Config();
-    $options->protocol = 'https';
-    $options->gatewayHost = 'openapi.alipay.com';
-    $options->signType = 'RSA2';
-
-    $options->appId = $this->configuration['app_id'];
-
-    // 为避免私钥随源码泄露，推荐从文件中读取私钥字符串而不是写入源码中.
-    $options->merchantPrivateKey = file_get_contents($this->configuration['app_private_key_path']);
-
-    // 请填写您的支付宝公钥证书文件路径，例如：/foo/alipayCertPublicKey_RSA2.crt.
-    $options->alipayCertPath = $this->configuration['alipay_cert_public_key_path'];
-    // 请填写您的支付宝根证书文件路径，例如：/foo/alipayRootCert.crt.
-    $options->alipayRootCertPath = $this->configuration['alipay_root_cert_path'];
-    // 请填写您的应用公钥证书文件路径，例如：/foo/appCertPublicKey_2019051064521003.crt.
-    $options->merchantCertPath = $this->configuration['app_cert_public_key_path'];
-
-    // 注：如果采用非证书模式，则无需赋值上面的三个证书路径，改为赋值如下的支付宝公钥字符串即可.
-    // 请填写您的支付宝公钥，例如：MIIBIjANBg...
-    // $options->alipayPublicKey = '';.
-    // 可设置异步通知接收服务地址（可选）.
-    // 请填写您的支付类接口异步通知接收服务地址，例如：https://www.test.com/callback
-    global $base_url;
-    $options->notifyUrl = $base_url . '/' . $this->getNotifyUrl()->getInternalPath();
-
-    // 可设置AES密钥，调用AES加解密相关接口时需要（可选）.
-    // 请填写您的AES密钥，例如：aa4BtZ4tspm2wnXLb1ThQA==.
-    $options->encryptKey = $this->configuration['app_private_key_path'];
-
-    Factory::setOptions($options);
-
-    $config = $options;
-
-    if (!empty($config->alipayCertPath)) {
-      $certEnvironment = new CertEnvironment();
-      $certEnvironment->certEnvironment(
-        $config->merchantCertPath,
-        $config->alipayCertPath,
-        $config->alipayRootCertPath
-      );
-      $config->merchantCertSN = $certEnvironment->getMerchantCertSN();
-      $config->alipayRootCertSN = $certEnvironment->getRootCertSN();
-      $config->alipayPublicKey = $certEnvironment->getCachedAlipayPublicKey();
-    }
-
-    $this->kernel = new EasySDKKernel($config);
-
-    $this->easySDKInitialized = TRUE;
+    $this->submitAlipayConfigurationForm($form, $form_state);
   }
 
   /**
