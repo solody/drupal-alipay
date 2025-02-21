@@ -3,6 +3,7 @@
 namespace Drupal\alipay\Plugin\TransferGateway;
 
 use Alipay\EasySDK\Kernel\Factory;
+use CommerceGuys\Intl\Formatter\CurrencyFormatterInterface;
 use Drupal\alipay\AlipayEasySdkTrait;
 use Drupal\alipay\Form\AlipayConfigFormTrait;
 use Drupal\commerce_price\Price;
@@ -10,6 +11,7 @@ use Drupal\account\Entity\WithdrawInterface;
 use Drupal\account\Plugin\TransferGatewayBase;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\entity\BundleFieldDefinition;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Transfer gateway implements in alipay.
@@ -24,6 +26,30 @@ class Alipay extends TransferGatewayBase {
   use StringTranslationTrait;
   use AlipayConfigFormTrait;
   use AlipayEasySdkTrait;
+
+  /**
+   * {@inheritdoc}
+   */
+  public function __construct(
+    array $configuration,
+    $plugin_id,
+    $plugin_definition,
+    private readonly CurrencyFormatterInterface $currencyFormatter,
+  ) {
+    parent::__construct($configuration, $plugin_id, $plugin_definition);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
+    return new static(
+      $configuration,
+      $plugin_id,
+      $plugin_definition,
+      $container->get('commerce_price.currency_formatter')
+    );
+  }
 
   /**
    * {@inheritdoc}
@@ -67,7 +93,7 @@ class Alipay extends TransferGatewayBase {
     if ($config->get('transfer_poundage.enable') && !$fee->isZero()) {
       $amount = $amount->subtract($fee);
       $remark .= $this->t('(Poundage @fee subtracted)', [
-        '@fee' => $this->getCurrencyFormatter()->format($fee->getNumber(), $fee->getCurrencyCode()),
+        '@fee' => $this->currencyFormatter->format($fee->getNumber(), $fee->getCurrencyCode()),
       ]);
     }
 
@@ -95,16 +121,6 @@ class Alipay extends TransferGatewayBase {
       $withdraw->setTransactionNumber($data['order_id']);
       return TRUE;
     }
-  }
-
-  /**
-   * Get the currency formatter.
-   *
-   * @return \CommerceGuys\Intl\Formatter\CurrencyFormatterInterface
-   *   The formatter.
-   */
-  private function getCurrencyFormatter() {
-    return \Drupal::getContainer()->get('commerce_price.currency_formatter');
   }
 
 }
