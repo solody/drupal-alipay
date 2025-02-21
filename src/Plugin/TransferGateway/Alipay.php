@@ -56,22 +56,34 @@ class Alipay extends TransferGatewayBase {
    */
   public function buildFieldDefinitions() {
     $fields['alipay_account'] = BundleFieldDefinition::create('string')
-      ->setLabel($this->t('Account'))
-      ->setDescription($this->t('account of the transfer target.'))
+      ->setLabel($this->t('Alipay account login name'))
+      ->setDescription($this->t('The login name of the alipay account of the transfer target.'))
       ->setDisplayOptions('view', [
         'label' => 'inline',
         'type' => 'string',
         'weight' => -9,
-      ]);
+      ])
+      ->setDisplayConfigurable('view', TRUE)
+      ->setDisplayOptions('form', [
+        'type' => 'string_textfield',
+        'weight' => -5,
+      ])
+      ->setDisplayConfigurable('form', TRUE);
 
     $fields['alipay_name'] = BundleFieldDefinition::create('string')
-      ->setLabel($this->t('Name'))
+      ->setLabel($this->t('Name of the alipay account owner'))
       ->setDescription($this->t('Real name of the transfer target.'))
       ->setDisplayOptions('view', [
         'label' => 'inline',
         'type' => 'string',
         'weight' => -9,
-      ]);
+      ])
+      ->setDisplayConfigurable('view', TRUE)
+      ->setDisplayOptions('form', [
+        'type' => 'string_textfield',
+        'weight' => -5,
+      ])
+      ->setDisplayConfigurable('form', TRUE);
 
     return $fields;
   }

@@ -3,9 +3,9 @@
 namespace Drupal\alipay\Plugin\Commerce\PaymentType;
 
 use Drupal\commerce_payment\Plugin\Commerce\PaymentType\PaymentTypeBase;
-use Drupal\Core\Field\BaseFieldDefinition;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\commerce_payment\Attribute\CommercePaymentType;
+use Drupal\entity\BundleFieldDefinition;
 
 /**
  * Provides the manual payment type.
@@ -22,7 +22,7 @@ class PaymentAlipay extends PaymentTypeBase {
    */
   public function buildFieldDefinitions() {
     $fields = [];
-    $fields['trade_tracking_id'] = BaseFieldDefinition::create('string')
+    $fields['trade_tracking_id'] = BundleFieldDefinition::create('string')
       ->setLabel($this->t('Trade tracking id'))
       ->setDescription($this->t('Keep the out_trade_no for refund.'))
       ->setDisplayConfigurable('view', TRUE);
