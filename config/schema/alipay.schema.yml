@@ -50,3 +50,12 @@ account.account_transfer_gateway.plugin.alipay:
     alipay_public_key_path:
       type: string
       label: 'The alipay public key'
+    app_cert_public_key_path:
+      type: string
+      label: 'The App Cert path'
+    alipay_cert_public_key_path:
+      type: string
+      label: 'The Alipay cert path'
+    alipay_root_cert_path:
+      type: string
+      label: 'The Alipay Root cert path'
