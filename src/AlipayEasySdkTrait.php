@@ -52,7 +52,7 @@ trait AlipayEasySdkTrait {
     // 可设置异步通知接收服务地址（可选）.
     // 请填写您的支付类接口异步通知接收服务地址，例如：https://www.test.com/callback
     global $base_url;
-    $options->notifyUrl = $base_url . '/' . $this->getNotifyUrl()->getInternalPath();
+    // $options->notifyUrl = $base_url . '/' . $this->getNotifyUrl()->getInternalPath();
 
     // 可设置AES密钥，调用AES加解密相关接口时需要（可选）.
     // 请填写您的AES密钥，例如：aa4BtZ4tspm2wnXLb1ThQA==.
