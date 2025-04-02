@@ -2,7 +2,6 @@
 
 namespace Drupal\alipay\Plugin\Commerce\PaymentGateway;
 
-use Alipay\EasySDK\Kernel\CertEnvironment;
 use Alipay\EasySDK\Kernel\EasySDKKernel;
 use Alipay\EasySDK\Kernel\Util\ResponseChecker;
 use Alipay\EasySDK\Kernel\Util\Signer;
@@ -24,7 +23,6 @@ use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Alipay\EasySDK\Kernel\Factory;
-use Alipay\EasySDK\Kernel\Config;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -35,9 +33,14 @@ use Symfony\Component\HttpFoundation\Response;
  *   label = "Alipay",
  *   display_label = "Alipay",
  *   payment_type = "payment_alipay",
+ *   modes = {
+ *     "test" = @Translation("Testing"),
+ *     "live" = @Translation("Live"),
+ *    },
  *   forms = {
  *     "offsite-payment" = "Drupal\alipay\PluginForm\QRCodePaymentForm",
- *   }
+ *   },
+ *   requires_billing_information = FALSE,
  * )
  */
 class Alipay extends OffsitePaymentGatewayBase implements

@@ -5,16 +5,3 @@
  * Hook implements for alipay.install.
  */
 
-use Drupal\user\RoleInterface;
-
-/**
- * Implements hook_install().
- * @noinspection PhpUnused
- */
-function alipay_install() {
-  // Append rest plugin permissions to authenticated role.
-  $permissions = [
-    'restful post alipay_payment',
-  ];
-  user_role_grant_permissions(RoleInterface::AUTHENTICATED_ID, $permissions);
-}
