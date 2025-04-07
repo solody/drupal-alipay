@@ -56,6 +56,7 @@ class Alipay extends OffsitePaymentGatewayBase implements
     AlipayConfigFormTrait::submitConfigurationForm as submitAlipayConfigurationForm;
   }
   use AlipayEasySdkTrait;
+  use \UpdatePaymentAfterRefundTrait;
 
   /**
    * The logger for this channel.
@@ -286,31 +287,6 @@ class Alipay extends OffsitePaymentGatewayBase implements
     $refund->setRemoteId($rs['trade_no']);
 
     $this->updatePaymentRefundedAmountAndState($refund->getPayment(), $refund->getAmount());
-  }
-
-  /**
-   * Update the payment refunded amount and state.
-   *
-   * @param \Drupal\commerce_payment\Entity\PaymentInterface $payment
-   *   The payment.
-   * @param \Drupal\commerce_price\Price $amount
-   *   The amount.
-   *
-   * @throws \Drupal\Core\Entity\EntityStorageException
-   */
-  private function updatePaymentRefundedAmountAndState(PaymentInterface $payment, Price $amount) {
-    // Update the payment balance.
-    $old_refunded_amount = $payment->getRefundedAmount();
-    $new_refunded_amount = $old_refunded_amount->add($amount);
-    if ($new_refunded_amount->lessThan($payment->getAmount())) {
-      $payment->setState('partially_refunded');
-    }
-    else {
-      $payment->setState('refunded');
-    }
-
-    $payment->setRefundedAmount($new_refunded_amount);
-    $payment->save();
   }
 
   /**
