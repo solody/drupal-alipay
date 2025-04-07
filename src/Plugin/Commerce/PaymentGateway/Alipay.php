@@ -13,6 +13,7 @@ use Drupal\commerce_payment\Entity\PaymentInterface;
 use Drupal\commerce_payment\Plugin\Commerce\PaymentGateway\OffsitePaymentGatewayBase;
 use Drupal\commerce_payment\Plugin\Commerce\PaymentGateway\SupportsRefundsInterface;
 use Drupal\commerce_price\Price;
+use Drupal\commerce_refund\Entity\Refund;
 use Drupal\commerce_refund\Entity\RefundInterface;
 use Drupal\commerce_refund\SupportsRefundEntityInterface;
 use Drupal\Core\Entity\EntityInterface;
@@ -256,9 +257,19 @@ class Alipay extends OffsitePaymentGatewayBase implements
     $amount = $amount ?: $payment->getAmount();
     $this->assertRefundAmount($payment, $amount);
 
-    $this->callRefundApi($payment->trade_tracking_id->vaue, $amount->getNumber());
-
-    $this->updatePaymentRefundedAmountAndState($payment, $amount);
+    // Create a refund entity and call executeRefund() on it.
+    $refund = Refund::create([
+      'payment_id' => $payment->id(),
+      'amount' => $amount,
+      'state' => 'new',
+      'remarks' => $this->t('Refund for payment :payment', [
+        ':payment' => $payment->label(),
+      ]),
+    ]);
+    $refund->save();
+    $refund->getState()->applyTransitionById('commit');
+    $refund->save();
+    $refund->executeRefund();
   }
 
   /**
