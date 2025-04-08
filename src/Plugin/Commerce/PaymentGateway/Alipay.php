@@ -16,6 +16,7 @@ use Drupal\commerce_price\Price;
 use Drupal\commerce_refund\Entity\Refund;
 use Drupal\commerce_refund\Entity\RefundInterface;
 use Drupal\commerce_refund\SupportsRefundEntityInterface;
+use Drupal\commerce_refund\UpdatePaymentAfterRefundTrait;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
@@ -56,7 +57,7 @@ class Alipay extends OffsitePaymentGatewayBase implements
     AlipayConfigFormTrait::submitConfigurationForm as submitAlipayConfigurationForm;
   }
   use AlipayEasySdkTrait;
-  use \UpdatePaymentAfterRefundTrait;
+  use UpdatePaymentAfterRefundTrait;
 
   /**
    * The logger for this channel.
