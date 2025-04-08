@@ -8,6 +8,7 @@ use Alipay\EasySDK\Kernel\Util\Signer;
 use Drupal\alipay\AlipayEasySdkTrait;
 use Drupal\alipay\Form\AlipayConfigFormTrait;
 use Drupal\commerce_checkout_api\SupportHeadlessPaymentInterface;
+use Drupal\commerce_order\Entity\OrderInterface;
 use Drupal\commerce_payment\Entity\Payment;
 use Drupal\commerce_payment\Entity\PaymentInterface;
 use Drupal\commerce_payment\Plugin\Commerce\PaymentGateway\OffsitePaymentGatewayBase;
@@ -419,17 +420,14 @@ class Alipay extends OffsitePaymentGatewayBase implements
       return FALSE;
     }
 
-    /** @var \Drupal\commerce_payment\Entity\Payment $payment_entity */
-    $payment_entity = Payment::load($payment_id);
-    if ($payment_entity instanceof PaymentInterface) {
-      $payment_entity->setState('completed');
-      $payment_entity->setRemoteId($result['trade_no']);
-      $payment_entity->save();
-
-      $order = $payment_entity->getOrder();
-      $transition = $order->getState()->getWorkflow()->getTransition('place');
-      $order->getState()->applyTransition($transition);
-      $order->save();
+    /** @var \Drupal\commerce_payment\Entity\Payment $payment */
+    $payment = Payment::load($payment_id);
+    if ($payment instanceof PaymentInterface) {
+      $payment->setState('completed');
+      $payment->setRemoteId($result['trade_no']);
+      $payment->save();
+      $payment->getOrder()->setRefreshState(OrderInterface::REFRESH_ON_SAVE);
+      $payment->getOrder()->save();
     }
     else {
       // Payment doesn't exist.
