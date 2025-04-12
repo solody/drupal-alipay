@@ -423,7 +423,7 @@ class Alipay extends OffsitePaymentGatewayBase implements
     /** @var \Drupal\commerce_payment\Entity\Payment $payment */
     $payment = Payment::load($payment_id);
     if ($payment instanceof PaymentInterface) {
-      $payment->setState('completed');
+      $payment->getState()->applyTransitionById('receive');
       $payment->setRemoteId($result['trade_no']);
       $payment->save();
       $payment->getOrder()->setRefreshState(OrderInterface::REFRESH_ON_SAVE);
