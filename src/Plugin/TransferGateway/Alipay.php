@@ -90,8 +90,9 @@ class Alipay extends TransferGatewayBase {
 
   /**
    * {@inheritdoc}
+   * @throws \Exception
    */
-  public function transfer(WithdrawInterface $withdraw): bool {
+  public function transfer(WithdrawInterface $withdraw) {
     $this->ensureEasySdkInitialized();
 
     $config = \Drupal::config('alipay.settings');
@@ -124,14 +125,13 @@ class Alipay extends TransferGatewayBase {
     ];
     $response = Factory::util()->generic()->execute('alipay.fund.trans.uni.transfer', [''], $bizParams);
 
-    if ($response->code !== '1000') {
-      \Drupal::logger('alipay')->error(var_export($response->httpBody, TRUE));
-      return FALSE;
-    }
-    else {
+    if ($response->code === '1000') {
       $data = $response->toMap();
       $withdraw->setTransactionNumber($data['order_id']);
-      return TRUE;
+    }
+    else {
+      \Drupal::logger('alipay')->error(var_export($response->httpBody, TRUE));
+      throw new \Exception('Alipay gateway error:' . $response->httpBody);
     }
   }
 
