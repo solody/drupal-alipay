@@ -90,6 +90,7 @@ class Alipay extends TransferGatewayBase {
 
   /**
    * {@inheritdoc}
+   *
    * @throws \Exception
    */
   public function transfer(WithdrawInterface $withdraw) {
