@@ -125,9 +125,9 @@ class Alipay extends TransferGatewayBase {
     ];
     $response = Factory::util()->generic()->execute('alipay.fund.trans.uni.transfer', [''], $bizParams);
 
-    if ($response->code === '1000') {
-      $data = $response->toMap();
-      $withdraw->setTransactionNumber($data['order_id']);
+    if ($response->code === '10000') {
+      $data = json_decode($response->httpBody, TRUE);
+      $withdraw->setTransactionNumber($data['alipay_fund_trans_uni_transfer_response']['order_id']);
     }
     else {
       \Drupal::logger('alipay')->error(var_export($response->httpBody, TRUE));
