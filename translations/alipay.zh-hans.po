@@ -1,0 +1,22 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: alipay (1.0.x-dev)\n"
+"POT-Creation-Date: 2024-08-25 16:06+0000\n"
+"PO-Revision-Date: YYYY-mm-DD HH:MM+ZZZZ\n"
+"Language-Team: Chinese, Simplified\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n!=1);\n"
+
+
+msgid "Enable transfer poundage"
+msgstr "启用转账手续费"
+msgid "Automatically subtract poundage before transfer."
+msgstr "自动扣除转账手续费。"
+msgid "Percentage of poundage will be subtract."
+msgstr "要扣除的手续费的百分比。"
+msgid "Alipay transfer settings"
+msgstr "支付宝转账设置"
+
+

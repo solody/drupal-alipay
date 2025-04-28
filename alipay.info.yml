@@ -10,3 +10,5 @@ dependencies:
   - commerce_checkout_api:commerce_checkout_api
   - drupal:rest
   - commerce_refund:commerce_refund
+'interface translation project': alipay
+'interface translation server pattern': translations/%project.%language.po

@@ -14,11 +14,22 @@ function alipay_help($route_name, RouteMatchInterface $route_match) {
   switch ($route_name) {
     // Main module help for the alipay module.
     case 'help.page.alipay':
-      $output = '';
-      $output .= '<h3>' . t('About') . '</h3>';
+      $output = '<h3>' . t('About') . '</h3>';
       $output .= '<p>' . t('My Awesome Module') . '</p>';
       return $output;
 
     default:
   }
+}
+
+/**
+ * Implements hook_locale_translation_projects_alter()
+ * to alter correct the translation file path.
+ *
+ * @param $projects
+ *
+ * @return void
+ */
+function alipay_locale_translation_projects_alter(&$projects) {
+  $projects['alipay']['info']['interface translation server pattern'] = __DIR__ . '/' . $projects['alipay']['info']['interface translation server pattern'];
 }
